@@ -1,0 +1,8 @@
+torch; sys_platform == 'darwin'
+
+--find-links https://download.pytorch.org/whl/torch_stable.html
+torch==2.1.1+cu121; sys_platform == 'linux' or sys_platform == 'windows'
+tqdm
+
+torchvision
+matplotlib
