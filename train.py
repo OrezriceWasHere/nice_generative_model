@@ -18,6 +18,7 @@ def train(flow, trainloader, optimizer, epoch):
         inputs = inputs.view(inputs.shape[0], inputs.shape[1] * inputs.shape[2] * inputs.shape[
             3])  # change  shape from BxCxHxW to Bx(C*H*W)
 
+        inputs = inputs.to(flow.device)
         # TODO Fill in
         log_likelihood = flow.log_prob(inputs)
         loss = -log_likelihood.mean()
