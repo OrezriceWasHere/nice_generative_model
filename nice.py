@@ -10,6 +10,7 @@ import numpy as np
 """Additive coupling layer.
 """
 
+odd, even = list(), list()
 
 def split_x1_x2(x, mask_config) -> typing.Tuple[torch.Tensor, torch.Tensor]:
     """Split input x into two parts along channel dimension.
@@ -20,11 +21,35 @@ def split_x1_x2(x, mask_config) -> typing.Tuple[torch.Tensor, torch.Tensor]:
     Returns:
         two tensors.
     """
+    n = x.shape[1]
+    assert n % 2 == 0, "Cannot split to exact half at odd length"
+    global odd, even
+    if not odd:
+        even, odd = list(range(0, n, 2)), list(range(1, n, 2))
     if mask_config == 1:
-        return x[:, 0::2], x[:, 1::2]
+        return x[:, odd], x[:, even]
     else:
-        return x[:, 1::2], x[:, 0::2]
+        return x[:, even], x[:, odd]
 
+def merge_x1_x2(x1,x2, mask_config) -> torch.Tensor:
+    """Split input x into two parts along channel dimension.
+
+    Args:
+        x: input tensor.
+        mask_config: 1 if transform odd units, 0 if transform even units.
+    Returns:
+        two tensors.
+    """
+    x = torch.zeros((x1.shape[0], x1.shape[1] * 2))
+    global odd, even
+    if mask_config == 1:
+        x[:,odd] += x1
+        x[:, even] += x2
+    else:
+        x[:, even] += x1
+        x[:, odd] += x2
+
+    return x
 
 class AdditiveCoupling(nn.Module):
     def __init__(self, in_out_dim, mid_dim, hidden, mask_config):
@@ -76,14 +101,14 @@ class AdditiveCoupling(nn.Module):
 
         if not compute_backwards:
             x1, x2 = split_x1_x2(x, self.mask_config)
-            y2 = x2 + self.coupling_model(x1)
-            y = torch.cat([x1, y2], dim=1)
+            y1, y2 = x1, x2 + self.coupling_model(x1)
+            y = merge_x1_x2(y1, y2, self.mask_config)
             return y, log_det_J
 
         else:
             y1, y2 = split_x1_x2(x, self.mask_config)
-            y2 = y2 - self.coupling_model(y1)
-            x = torch.cat([y1, y2], dim=1)
+            x1, x2 = y1, y2 - self.coupling_model(y1)
+            x = merge_x1_x2(x1, x2, self.mask_config)
             return x, log_det_J
 
 class AffineCoupling(nn.Module):
@@ -151,7 +176,7 @@ class Scaling(nn.Module):
         super(Scaling, self).__init__()
         # self.scale = nn.Parameter(
         #     torch.zeros((1, dim)), requires_grad=True)
-        self.scale = nn.Parameter(torch.randn(1, dim, requires_grad=True))
+        self.scale = nn.Parameter(torch.zeros((1, dim), requires_grad=True))
         self.eps = 1e-5
 
     def forward(self, x, log_det_J, compute_backwards=False):
@@ -166,7 +191,7 @@ class Scaling(nn.Module):
         scale = torch.exp(self.scale) + self.eps
         #TODO fill in
         # We only sum instead of applying log because scaling is already in log space
-        this_log_det_J = torch.sum(self.scale)
+        this_log_det_J = torch.sum(self.scale).item()
 
         if compute_backwards:
             return x / scale, log_det_J - this_log_det_J
