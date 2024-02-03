@@ -14,6 +14,7 @@ import nice
 
 def train(flow, trainloader, optimizer, epoch):
     flow.train()  # set to training mode
+    neg_log_likelihood = 0
     for inputs, _ in trainloader:
         inputs = inputs.view(inputs.shape[0], inputs.shape[1] * inputs.shape[2] * inputs.shape[
             3])  # change  shape from BxCxHxW to Bx(C*H*W)
@@ -22,14 +23,17 @@ def train(flow, trainloader, optimizer, epoch):
         # TODO Fill in
         log_likelihood = flow.log_prob(inputs)
         loss = -log_likelihood.mean()
-
+        neg_log_likelihood += loss.item()
         loss.backward()
         optimizer.step()
         flow.zero_grad()
 
+    return neg_log_likelihood / len(trainloader)
+
 
 def test(flow, testloader, filename, epoch, sample_shape):
     flow.eval()  # set to inference mode
+    neg_log_likelihood = 0
     with torch.no_grad():
         samples = flow.sample(100).cpu()
         a, b = samples.min(), samples.max()
@@ -38,10 +42,46 @@ def test(flow, testloader, filename, epoch, sample_shape):
         torchvision.utils.save_image(torchvision.utils.make_grid(samples),
                                      './samples/' + filename + 'epoch%d.png' % epoch)
         # TODO full in
+        for inputs, _ in testloader:
+            inputs = inputs.view(inputs.shape[0], inputs.shape[1] * inputs.shape[2] * inputs.shape[
+                3])
+            inputs = inputs.to(flow.device)
+            log_likelihood = flow.log_prob(inputs)
+            loss = -log_likelihood.mean()
+            neg_log_likelihood += loss.item()
+
+    test_loss = neg_log_likelihood / len(testloader)
+    print('Test set: Average loss: {:.4f}'.format(test_loss))
+
+    return test_loss
 
 
 def add_noise(x):
     return x + torch.zeros_like(x).uniform_(0., 1. / 256.)
+
+
+def plot_draws(train_log_likelihood, test_log_likelihood):
+    """This function draws matplotlib of train log likelihood and test"""
+    # Using Numpy to create an array X
+    X = list(range(len(train_log_likelihood)))
+
+    # Assign variables to the y axis part of the curve
+
+
+    # Plotting both the curves simultaneously
+    plt.plot(X, train_log_likelihood, color='r', label='train')
+    plt.plot(X, test_log_likelihood, color='g', label='test')
+
+    # Naming the x-axis, y-axis and the whole graph
+    plt.xlabel("epoch")
+    plt.ylabel("average negative log likelihood per epoch")
+    plt.title("training process")
+
+    # Adding legend, which helps us recognize the curve according to it's color
+    plt.legend()
+
+    # To load the display window
+    plt.show()
 
 
 def main(args):
@@ -95,10 +135,15 @@ def main(args):
     optimizer = torch.optim.Adam(
         flow.parameters(), lr=args.lr)
 
+    train_log_likelihood, test_log_likelihood = [], []
     # TODO fill in
     for e in tqdm.tqdm(range(args.epochs)):
-        train(flow, trainloader, optimizer, e)
-        test(flow, testloader, model_save_filename, e, sample_shape)
+        train_result = train(flow, trainloader, optimizer, e)
+        test_result = test(flow, testloader, model_save_filename, e, sample_shape)
+        train_log_likelihood.append(train_result)
+        test_log_likelihood.append(test_result)
+
+    plot_draws(train_log_likelihood, test_log_likelihood)
 
     print('Finished Training')
 
