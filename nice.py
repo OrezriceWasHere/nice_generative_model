@@ -1,7 +1,6 @@
 """NICE model
 """
 import typing
-
 import torch
 import torch.nn as nn
 from torch.distributions.transforms import Transform, SigmoidTransform, AffineTransform
@@ -176,9 +175,9 @@ class Scaling(nn.Module):
         super(Scaling, self).__init__()
         # self.scale = nn.Parameter(
         #     torch.zeros((1, dim)), requires_grad=True)
-        self.scale = nn.Parameter(torch.zeros((1, dim), requires_grad=True))
         self.eps = 1e-5
 
+        self.scale = nn.Parameter(torch.zeros((1, dim), requires_grad=True))
     def forward(self, x, log_det_J, compute_backwards=False):
         """Forward pass.
 
@@ -191,14 +190,13 @@ class Scaling(nn.Module):
         scale = torch.exp(self.scale) + self.eps
         #TODO fill in
         # We only sum instead of applying log because scaling is already in log space
-        this_log_det_J = torch.sum(self.scale).item()
+        log_det_jacobian = torch.sum(self.scale)
 
-        if compute_backwards:
-            return x / scale, log_det_J - this_log_det_J
+        if not compute_backwards:
+            return scale * x, log_det_J + log_det_jacobian
 
-        return x * scale, log_det_J + this_log_det_J
-
-
+        scale = torch.exp(-self.scale) + self.eps
+        return scale * x, log_det_J - log_det_jacobian
 
 
 
