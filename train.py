@@ -6,8 +6,6 @@ import torch
 import torchvision
 import tqdm
 from torchvision import transforms
-from collections import defaultdict
-from tqdm import trange
 import matplotlib.pyplot as plt
 import nice
 
@@ -21,8 +19,9 @@ def train(flow, trainloader, optimizer, epoch):
 
         inputs = inputs.to(flow.device)
         # TODO Fill in
-        log_likelihood = flow.log_prob(inputs)
-        loss = -log_likelihood.mean()
+        nll = flow.log_prob(inputs)
+        avg_nll = nll.mean()
+        loss = torch.abs(avg_nll)
         neg_log_likelihood += loss.item()
         loss.backward()
         optimizer.step()
@@ -153,7 +152,7 @@ if __name__ == '__main__':
     parser.add_argument('--dataset',
                         help='dataset to be modeled.',
                         type=str,
-                        default='fashion-mnist')
+                        default='mnist')
     parser.add_argument('--prior',
                         help='latent distribution.',
                         type=str,
@@ -177,7 +176,7 @@ if __name__ == '__main__':
     parser.add_argument('--coupling-type',
                         help='.',
                         type=str,
-                        default='additive')
+                        default='affine')
     parser.add_argument('--coupling',
                         help='.',
                         # type=int,
@@ -193,7 +192,7 @@ if __name__ == '__main__':
     parser.add_argument('--lr',
                         help='initial learning rate.',
                         type=float,
-                        default=1e-4)
+                        default=2e-4)
 
     args = parser.parse_args()
     main(args)
