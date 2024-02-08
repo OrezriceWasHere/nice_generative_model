@@ -20,8 +20,9 @@ def train(flow, trainloader, optimizer, epoch):
         inputs = inputs.to(flow.device)
         # TODO Fill in
         nll = flow.log_prob(inputs)
-        avg_nll = nll.mean()
-        loss = torch.abs(avg_nll)
+        avg_nll = -nll.mean()
+        loss = avg_nll
+        # loss = torch.abs(avg_nll)
         neg_log_likelihood += loss.item()
         loss.backward()
         optimizer.step()
@@ -192,7 +193,7 @@ if __name__ == '__main__':
     parser.add_argument('--lr',
                         help='initial learning rate.',
                         type=float,
-                        default=2e-4)
+                        default=1e-3)
 
     args = parser.parse_args()
     main(args)

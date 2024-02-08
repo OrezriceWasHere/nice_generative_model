@@ -140,7 +140,7 @@ class AffineCoupling(nn.Module):
 
         # Output layer
         layers += [
-            nn.Linear(mid_dim, in_out_dim // 2)
+            nn.Linear(mid_dim, in_out_dim)
         ]
 
         self.model = nn.Sequential(*layers)
@@ -160,10 +160,10 @@ class AffineCoupling(nn.Module):
         """
         # TODO fill in
         x1, x2 = split_x1_x2(x, self.mask_config)
-        out = self.model(x1)
-        t = x1
+        x2_layer = self.model(x2)
+        s_log, t = x2_layer[:,0::2, ...], x2_layer[:,1::2, ...]
 
-        s = torch.exp(out) + 1e-5
+        s = torch.sigmoid(s_log)
         log_det_J_diff = torch.sum(torch.log(torch.abs(s)))
 
 
