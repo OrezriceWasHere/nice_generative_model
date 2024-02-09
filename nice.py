@@ -11,6 +11,7 @@ import numpy as np
 """
 
 odd, even = list(), list()
+SIGMOID_BIAS = 2.0
 
 
 def split_x1_x2(x, mask_config) -> typing.Tuple[torch.Tensor, torch.Tensor]:
@@ -139,14 +140,13 @@ class AffineCoupling(nn.Module):
             ]
 
         # Output layer
+        # Output here is twice as big as the additive coupling
         layers += [
             nn.Linear(mid_dim, in_out_dim)
         ]
 
         self.model = nn.Sequential(*layers)
         self.mask_config = mask_config
-        self.s_net = torch.exp
-        self.t_net = torch.nn.Identity()
 
     def forward(self, x, log_det_J, reverse=False):
         """Forward pass.
@@ -161,44 +161,20 @@ class AffineCoupling(nn.Module):
         # TODO fill in
         x1, x2 = split_x1_x2(x, self.mask_config)
         x2_layer = self.model(x2)
-        s_log, t = x2_layer[:,0::2, ...], x2_layer[:,1::2, ...]
+        s_log, t = x2_layer[:, 0::2, ...], x2_layer[:, 1::2, ...]
 
-        s = torch.sigmoid(s_log)
+        s = torch.sigmoid(s_log + SIGMOID_BIAS)
         log_det_J_diff = torch.sum(torch.log(torch.abs(s)))
-
 
         if not reverse:
             log_det_J += log_det_J_diff
-            x2 = s * x2 + t
+            x1 = s * x1 + t
         else:
             log_det_J += log_det_J_diff
-            x2 = (x2 - t) / s
-
+            x1 = (x1 - t) / s
 
         x = merge_x1_x2(x1, x2, self.mask_config)
         return x, log_det_J
-
-        #
-        # else:
-        #     y1, y2 = split_x1_x2(x, self.mask_config)
-        #     s = self.s_net(y1)
-        #     t = self.t_net(y1)
-        #     x1 = y1
-        #     x2 = (y2 - t) * (1 / s)
-        #     x = merge_x1_x2(x1, x2, self.mask_config)
-        #     log_det_J -= torch.sum(s)
-        #     return x, log_det_J
-            #
-            # y1, y2 = split_x1_x2(x, self.mask_config)
-            # y1, y2 = y1.t(), y2.t()
-            # s = self.s_net(y1)
-            # t = self.t_net(y1)
-            # x1 = y1
-            # x2 = (y2 - t) * torch.exp(-s)
-            # x1 , x2 = x1.t(), x2.t()
-            # x = merge_x1_x2(x1, x2, self.mask_config)
-            # log_det_J -= torch.sum(s)
-            # return x, log_det_J
 
 
 """Log-scaling layer.
